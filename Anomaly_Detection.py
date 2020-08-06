@@ -8,11 +8,12 @@ Created on Wed Aug  5 09:29:08 2020
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt 
+import seaborn as sb
+
 figDir = "Figures/"     
 
 
-df = pd.read_json('syntetic-nd.json', lines = True)   
-df["timestamp"] = (df["timestamp"].astype('uint64') / 1e6).astype('uint32')
+df = pd.read_json('syntetic-nd.json', lines = True)    
 df = df.set_index("timestamp")
 #%%
 from sklearn import preprocessing
@@ -158,11 +159,11 @@ def create_dataset(dataset, look_back=1):
 
 df = normalizedf(df)
 
-X_f, Y_f = create_dataset(df.drop(columns=["Feature1"]),17)
+X_f, Y_f = create_dataset(df.drop(columns=["Feature2"]),17)
 #%% Visualize and Analyze dataframe
 intro(df)
-df.reset_index().plot(x="timestamp",y="Feature1",kind="scatter")
-df.reset_index().plot(x="timestamp",y="Feature2",kind="scatter")
+df.reset_index().plot(x="timestamp",y="Feature1" )
+df.reset_index().plot(x="timestamp",y="Feature2" )
 
 #Bir senörün anomlisi, diğer sensörden bağımsız. Anomalileri arasında ilişkileri yok.
 #2 Sensör arasında Korelasyonun 0.54 değerinde olması, frekanslarının aynı olmasından kaynaklanıyor olmalı
@@ -176,19 +177,20 @@ modelsNotFitted = [ LocalOutlierFactor(leaf_size=10 , novelty=False) ]
 X = X_f.reshape(X_f.shape[:-1]) 
 #Anomali olup olmadığına bak
 for model in modelsNotFitted: 
-    Y = model.fit_predict(X) 
-    plt.plot(Y)
+    model.fit_predict(X) 
+    lof = model.negative_outlier_factor_
+    plt.plot(lof/min(lof),color="orange") 
+    plt.title("LocalOutlierFactor On Feature 1")
     plt.plot(Y_f)
-    plt.show()     
-lof = model.negative_outlier_factor_
-plt.plot(lof)
-plt.show() 
+    plt.show()      
 #LocalOutlierFactor başarılı    
 
 #%% LUMINOL    
 from luminol import  anomaly_detector 
- 
-a = df.drop(columns=["Feature1"]).to_dict("series")["Feature2"].to_dict()
+df = df.reset_index()
+df["timestamp"] = (df["timestamp"].astype('uint64') / 1e6).astype('uint32')
+df.set_index("timestamp")
+a = df.drop(columns=["Feature2"]).to_dict("series")["Feature1"].to_dict()
 detector = anomaly_detector.AnomalyDetector(a,algorithm_name="exp_avg_detector",score_threshold = 0.2 ) 
 anomalies = detector.get_anomalies() 
  
@@ -210,12 +212,13 @@ for anom in anomalies :
         v.append(a[s])
     timerange =  np.arange(s,e)   
     plt.plot(timerange,v, c ="r",marker= 'o') 
+plt.title("Luminol on Feature 1")
 plt.show( )    
 
 #%% Robust Random Cut Forest Algorithm
 
 import rrcf
-X = df["Feature2"].tolist()
+X = df["Feature1"].tolist()
  
 TREE_COUNT = 16
 SHINGLE_COUNT = 8
@@ -247,9 +250,12 @@ for key in avg_codisp:
 PLOTSCALE= 5    
 values = np.array(values)/(PLOTSCALE* max(values)) 
 #%%
-plt.plot(time_periods,values , c="red")
-plt.plot(time_periods,X[SHINGLE_COUNT-1:])
+import seaborn as sns; sns.set()
+import matplotlib.pyplot as plt
+plt.title("Robust Random Cut Forest Algorithm on Feature 2")
 
+sb.lineplot(time_periods,values,label="Anomaly Scores"  )
+sb.lineplot(time_periods,X[SHINGLE_COUNT-1:],label="Values")  
 #%% AUTOENCODER NOVELTY
 from keras.models import Sequential,load_model
 from keras.layers import Dense, LSTM, Dropout, LeakyReLU  ,RepeatVector,TimeDistributed
@@ -258,7 +264,7 @@ from keras.optimizers import Adam, SGD, Adamax,RMSprop
 import tensorflow as tf 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 # ilk 4000'de anomaly yok
-X_train,_ = create_dataset(df.drop(columns="Feature2")[:4000],200)
+X_train,_ = create_dataset(df.drop(columns="Feature1")[:4000],200)
 model = Sequential()
 model.add( LSTM(
     units=64,
@@ -277,14 +283,15 @@ history = model.fit(
     batch_size=300,
     validation_split=0.05,
     shuffle=False,
-    callbacks = [EarlyStopping(monitor='val_loss', min_delta=0, patience=30, verbose=0, mode='min'),
-                       ModelCheckpoint("AE.h5",monitor='val_loss', save_best_only=True, mode='min', verbose=1)]
+    callbacks = [EarlyStopping(monitor='val_loss', min_delta=0, patience=50, verbose=0, mode='min'),
+                       ModelCheckpoint("AE1.h5",monitor='val_loss', save_best_only=True, mode='min', verbose=1)]
     )
           
 #%% TEST AUTOENCODER
-model = load_model("AE.h5")  
-test,_ = create_dataset(df.drop(columns="Feature2")[4000:] ,200)
-
-plt.plot(test.reshape(test.shape[:-1]),c="red")
-plt.plot(model.predict(test),c="orange")
+model = load_model("AE1.h5")  
+test,_ = create_dataset(df.drop(columns="Feature1")[4000:] ,200)
+#%%
+plt.title("AutoEncoder on Feature 1\nOriginal vs Reconstructed Values")
+plt.plot(test.reshape(test.shape[:-1]),c="red")  
+plt.plot(model.predict(test),c="orange") 
 plt.show()
