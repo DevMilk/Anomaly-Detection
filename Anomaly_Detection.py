@@ -290,8 +290,14 @@ history = model.fit(
 #%% TEST AUTOENCODER
 model = load_model("AE1.h5")  
 test,_ = create_dataset(df.drop(columns="Feature1")[4000:] ,200)
-#%%
+#%% Plot Original and Reconstructed Data
 plt.title("AutoEncoder on Feature 1\nOriginal vs Reconstructed Values")
 plt.plot(test.reshape(test.shape[:-1]),c="red")  
 plt.plot(model.predict(test),c="orange") 
+plt.show()
+
+#%% Plot Training History
+sns.lineplot(np.arange(len(history.history["loss"])),history.history["loss"], label="Loss")
+sns.lineplot(np.arange(len(history.history["loss"])),history.history["val_loss"], label="Validation Loss")
+plt.title("LSTM Training")
 plt.show()
