@@ -281,27 +281,10 @@ history = model.fit(
                        ModelCheckpoint("AE.h5",monitor='val_loss', save_best_only=True, mode='min', verbose=1)]
     )
           
-#%%
-import math
-from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score  
-def testModel(model,MtX,tY): 
-    testPredict = model.predict(MtX)     
-    testScore = (mean_absolute_error(tY[0],testPredict[0]))
-    root_mse = math.sqrt(mean_squared_error(tY[0],testPredict[0]))
-    r2score = r2_score(tY[0],testPredict[0])
-    print(str(model)+'\nTest Score: %.2f MAE' % (testScore))
-    print('Test Score: %.2f RMSE' % (root_mse))  
-    print('Test Score: %.2f r2' % (r2score)) 
-    plt.plot(testPredict[0]) 
-    plt.plot(tY[0])
-    plt.title(str(model))
-    plt.show()
-    return testScore,r2score
+#%% TEST AUTOENCODER
+model = load_model("AE.h5")  
+test,_ = create_dataset(df.drop(columns="Feature2")[4000:] ,200)
 
-model = load_model("AE.h5") 
-index = 150
-X_train,_ = create_dataset(df.drop(columns="Feature2") ,200)
-
-plt.plot(X_train.reshape(X_train.shape[:-1]),c="red")
-plt.plot(model.predict(X_train),c="orange")
+plt.plot(test.reshape(test.shape[:-1]),c="red")
+plt.plot(model.predict(test),c="orange")
 plt.show()
