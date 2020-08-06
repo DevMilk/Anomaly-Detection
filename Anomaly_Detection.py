@@ -7,14 +7,12 @@ Created on Wed Aug  5 09:29:08 2020
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import os
- 
-os.chdir(os.getcwd())
+import matplotlib.pyplot as plt 
 figDir = "Figures/"     
 
 
-df = pd.read_json('syntetic-nd.json', lines = True) 
+df = pd.read_json('syntetic-nd.json', lines = True)   
+df["timestamp"] = (df["timestamp"].astype('uint64') / 1e6).astype('uint32')
 df = df.set_index("timestamp")
 #%%
 from sklearn import preprocessing
@@ -172,48 +170,138 @@ df.reset_index().plot(x="timestamp",y="Feature2",kind="scatter")
 from sklearn.svm import OneClassSVM #Bu data üzerinde Başarılı Değil
 from sklearn.ensemble import IsolationForest  #Bu data üzerinde başarılı değil
 from sklearn.neighbors import LocalOutlierFactor 
-modelsNotFitted = [ LocalOutlierFactor(leaf_size=100 , novelty=False)] 
+from kenchi.outlier_detection.statistical import HBOS
+
+modelsNotFitted = [ LocalOutlierFactor(leaf_size=10 , novelty=False) ] 
 X = X_f.reshape(X_f.shape[:-1]) 
 #Anomali olup olmadığına bak
 for model in modelsNotFitted: 
-    Y = model.fit_predict(X)
+    Y = model.fit_predict(X) 
     plt.plot(Y)
     plt.plot(Y_f)
-    plt.show()    
-    
-#LocalOutlierFactor çok başarılı!    
-    #%%
+    plt.show()     
+lof = model.negative_outlier_factor_
+plt.plot(lof)
+plt.show() 
+#LocalOutlierFactor başarılı    
+
+#%% LUMINOL    
+from luminol import  anomaly_detector 
+ 
+a = df.drop(columns=["Feature1"]).to_dict("series")["Feature2"].to_dict()
+detector = anomaly_detector.AnomalyDetector(a,algorithm_name="exp_avg_detector",score_threshold = 0.2 ) 
+anomalies = detector.get_anomalies() 
+ 
+time_periods = [] 
+values = []
+for key in (a): 
+    time_periods.append(key)
+    values.append(a[key])
+plt.plot(time_periods,values)     
+       
+anom_times = []
+anom_values = []
+for anom in anomalies :  
+    anom_times.append(np.arange(anom.start_timestamp,anom.end_timestamp))
+    anom_values.append(anom.anomaly_score)
+    s, e = anom.start_timestamp, anom.end_timestamp
+    v = []
+    for i in range(s,e  ):
+        v.append(a[s])
+    timerange =  np.arange(s,e)   
+    plt.plot(timerange,v, c ="r",marker= 'o') 
+plt.show( )    
+
+#%% Robust Random Cut Forest Algorithm
+
+import rrcf
+X = df["Feature2"].tolist()
+ 
+TREE_COUNT = 16
+SHINGLE_COUNT = 8
+TREE_SIZE = 200
+forest = [] 
+for i in range(TREE_COUNT):
+    tree = rrcf.RCTree()
+    forest.append(tree)
+points = rrcf.shingle(X, size=SHINGLE_COUNT)
+
+avg_codisp = {}
+
+ 
+for index, point in enumerate(points): 
+    for tree in forest: 
+        if len(tree.leaves) > TREE_SIZE:
+            tree.forget_point(index - TREE_SIZE) 
+        tree.insert_point(point, index=index) 
+        if not index in avg_codisp:
+            avg_codisp[index] = 0
+        avg_codisp[index] += tree.codisp(index) / TREE_COUNT
+        
+time_periods = [] 
+values = []
+for key in avg_codisp:
+    time_periods.append(key)
+    values.append(avg_codisp[key])
+
+PLOTSCALE= 5    
+values = np.array(values)/(PLOTSCALE* max(values)) 
+#%%
+plt.plot(time_periods,values , c="red")
+plt.plot(time_periods,X[SHINGLE_COUNT-1:])
+
+#%% AUTOENCODER NOVELTY
 from keras.models import Sequential,load_model
-from keras.layers import Dense, LSTM, Dropout, LeakyReLU  
+from keras.layers import Dense, LSTM, Dropout, LeakyReLU  ,RepeatVector,TimeDistributed
 
 from keras.optimizers import Adam, SGD, Adamax,RMSprop  
 import tensorflow as tf 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-
-testX, testY = X_f[-2000:],Y_f[-2000:]
-trainX, trainY = X_f[:-2000], Y_f[:-2000]  
-m = Sequential()
-m.add(LSTM(50, input_dim=(1), return_sequences=True))
-m.add(LSTM(25, return_sequences=False )) 
-m.add(Dense(1))
-m.compile(loss='mse', optimizer='adam')
-m.fit(trainX, trainY,use_multiprocessing = True, validation_data=(testX,testY),workers = 2,epochs = 200, batch_size= 1000, callbacks = [EarlyStopping(monitor='val_loss', min_delta=0, patience=30, verbose=0, mode='min'),
-                       ModelCheckpoint("model.h5",monitor='val_loss', save_best_only=True, mode='min', verbose=1)])
-#%%
-m = load_model("model.h5")
-plt.plot(Y_f,label="Real" )
-plt.show()
-plt.plot(m.predict(X_f),label="predict")
-plt.show()
- 
-
+# ilk 4000'de anomaly yok
+X_train,_ = create_dataset(df.drop(columns="Feature2")[:4000],200)
+model = Sequential()
+model.add( LSTM(
+    units=64,
+    input_shape=(X_train.shape[1], X_train.shape[2])
+))
+model.add(Dense(10 ))
+model.add( Dropout(rate=0.2))  
+model.add(Dense(64))
+model.add( Dropout(rate=0.2))
+model.add( Dense ( units = X_train.shape[1] ) ) 
+          
+model.compile(loss='mse', optimizer='rmsprop')
+history = model.fit(
+    X_train, X_train.reshape( X_train.shape[:-1] ),
+    epochs=300,
+    batch_size=300,
+    validation_split=0.05,
+    shuffle=False,
+    callbacks = [EarlyStopping(monitor='val_loss', min_delta=0, patience=30, verbose=0, mode='min'),
+                       ModelCheckpoint("AE.h5",monitor='val_loss', save_best_only=True, mode='min', verbose=1)]
+    )
+          
 #%%
 import math
-import statsmodels.api as sm
-import statsmodels.tsa.api as smt
-from sklearn.metrics import mean_squared_error
-from pandas.plotting import autocorrelation_plot
-from statsmodels.tsa.seasonal import seasonal_decompose
+from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score  
+def testModel(model,MtX,tY): 
+    testPredict = model.predict(MtX)     
+    testScore = (mean_absolute_error(tY[0],testPredict[0]))
+    root_mse = math.sqrt(mean_squared_error(tY[0],testPredict[0]))
+    r2score = r2_score(tY[0],testPredict[0])
+    print(str(model)+'\nTest Score: %.2f MAE' % (testScore))
+    print('Test Score: %.2f RMSE' % (root_mse))  
+    print('Test Score: %.2f r2' % (r2score)) 
+    plt.plot(testPredict[0]) 
+    plt.plot(tY[0])
+    plt.title(str(model))
+    plt.show()
+    return testScore,r2score
 
-autocorrelation_plot(X)
-decompose = seasonal_decompose(X,model="additive",period=5000 ).plot() #Yıllık olarak dalganın aayrıştıırlması 
+model = load_model("AE.h5") 
+index = 150
+X_train,_ = create_dataset(df.drop(columns="Feature2")[ 4000:],200)
+
+plt.plot(X_train.reshape(X_train.shape[:-1]),c="red")
+plt.plot(model.predict(X_train),c="orange")
+plt.show()
