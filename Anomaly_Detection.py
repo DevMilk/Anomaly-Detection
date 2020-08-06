@@ -300,7 +300,7 @@ def testModel(model,MtX,tY):
 
 model = load_model("AE.h5") 
 index = 150
-X_train,_ = create_dataset(df.drop(columns="Feature2")[ 4000:],200)
+X_train,_ = create_dataset(df.drop(columns="Feature2") ,200)
 
 plt.plot(X_train.reshape(X_train.shape[:-1]),c="red")
 plt.plot(model.predict(X_train),c="orange")
