@@ -1,5 +1,5 @@
 # Anomaly-Detection
-Anomaly Detection on Time-Series Sensor Measurement Data by using Unsupervised Methods
+Anomaly Detection on Time-Series Sensor Measurement Data by using Unsupervised Machine Leatning and Deep Learning Methods
 
 ----
 
