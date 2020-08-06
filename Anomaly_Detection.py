@@ -220,7 +220,7 @@ plt.show( )
 import rrcf
 X = df["Feature1"].tolist()
  
-TREE_COUNT = 16
+TREE_COUNT = 100
 SHINGLE_COUNT = 8
 TREE_SIZE = 200
 forest = [] 
@@ -252,7 +252,7 @@ values = np.array(values)/(PLOTSCALE* max(values))
 #%%
 import seaborn as sns; sns.set()
 import matplotlib.pyplot as plt
-plt.title("Robust Random Cut Forest Algorithm on Feature 2")
+plt.title("Robust Random Cut Forest Algorithm on Feature 1")
 
 sb.lineplot(time_periods,values,label="Anomaly Scores"  )
 sb.lineplot(time_periods,X[SHINGLE_COUNT-1:],label="Values")  
