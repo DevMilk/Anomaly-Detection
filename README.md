@@ -4,7 +4,7 @@ Anomaly Detection on Time-Series Sensor Measurement Data by using Unsupervised M
 ----
 
 ## DATA
-JSON Data has 3 features including a timestamp and 2 sensor measurement. The goal is to detect anomalies of sensor mesurement seperately from that time-series data which means making an time-series unvariant anomaly detection.
+JSON Data has 3 features including a timestamp and 2 sensor measurement.  The goal is to detect anomalies of sensor mesurement seperately from that time-series data which means making an time-series unvariant anomaly detection.
  
  
 ![alttext](Figures/Feature1-Ts.png) 
